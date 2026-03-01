@@ -3,7 +3,7 @@
 Automação em Python para:
 
 - juntar vários PDFs na ordem desejada;
-- **opcionalmente** inserir páginas/PDFs extras em posições específicas;
+- enumerar todas as páginas no PDF final;
 - usar por linha de comando ou por tela (interface gráfica);
 - gerar executável com PyInstaller.
 
@@ -22,27 +22,17 @@ python app_gui.py
 Na tela você consegue:
 
 1. adicionar os PDFs base;
-2. escolher se quer inserir páginas extras (opcional);
+2. organizar a ordem;
 3. escolher o arquivo final;
-4. gerar o PDF.
+4. gerar o PDF com páginas enumeradas no rodapé.
 
 ## Opção 2: usar por terminal
 
-### Somente juntar PDFs
-
 ```bash
-python juntar_pdfs.py arquivo1.pdf arquivo2.pdf -o saida.pdf
+python juntar_pdfs.py arquivo1.pdf arquivo2.pdf arquivo3.pdf -o saida.pdf
 ```
 
-### Juntar e inserir páginas extras (opcional)
-
-Formato de inserção: `POSICAO:arquivo.pdf`
-
-```bash
-python juntar_pdfs.py base1.pdf base2.pdf -o final.pdf \
-  --insert 1:capa.pdf \
-  --insert 3:assinatura.pdf
-```
+> O PDF gerado já sai com numeração contínua de páginas (Página 1, Página 2, ...).
 
 ## Gerar executável (Windows)
 
@@ -53,7 +43,3 @@ pyinstaller --noconfirm --onefile --windowed --name JuntarPDFs app_gui.py
 Executável gerado em:
 
 - `dist/JuntarPDFs.exe`
-
-## Observação sobre páginas com imagem e faixa branca
-
-A junção/inserção copia as páginas diretamente do PDF original, sem rasterizar ou redimensionar, para evitar o problema de áreas em branco.
