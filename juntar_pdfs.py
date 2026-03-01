@@ -6,7 +6,10 @@ from __future__ import annotations
 import argparse
 import io
 from pathlib import Path
-from typing import Iterable
+from typing import Callable, Iterable, Literal
+
+NumberFormat = Literal["page_n", "n_of_total", "dash_n_dash", "number_only"]
+NumberPosition = Literal["left", "center", "right"]
 
 
 class CliError(Exception):
@@ -19,77 +22,97 @@ def _validate_inputs(paths: Iterable[Path]) -> None:
             raise CliError(f"Arquivo não encontrado: {path}")
 
 
-def _validate_output_path(inputs: list[Path], output: Path) -> None:
-    """Evita sobrescrever arquivos de entrada acidentalmente."""
-    resolved_output = output.resolve()
-    for input_path in inputs:
-        if input_path.resolve() == resolved_output:
-            raise CliError("O arquivo de saída não pode ser igual a um arquivo de entrada.")
+def _format_page_label(number_format: NumberFormat, page_number: int, total_pages: int) -> str:
+    if number_format == "page_n":
+        return f"Página {page_number}"
+    elif number_format == "n_of_total":
+        return f"{page_number} / {total_pages}"
+    elif number_format == "dash_n_dash":
+        return f"- {page_number} -"
+    else:  # number_only
+        return str(page_number)
 
 
-def _import_pdf_dependencies() -> tuple[object, object, object, object]:
+def _build_number_overlay(
+    width: float,
+    height: float,
+    page_number: int,
+    total_pages: int,
+    number_format: NumberFormat,
+    position: NumberPosition,
+):
+    from pypdf import PdfReader
+    from reportlab.lib.colors import Color
+    from reportlab.pdfgen import canvas
+
+    label = _format_page_label(number_format, page_number, total_pages)
+
+    stream = io.BytesIO()
+    page_canvas = canvas.Canvas(stream, pagesize=(width, height))
+    page_canvas.setFillColor(Color(0.25, 0.25, 0.25, alpha=1))
+    page_canvas.setFont("Helvetica", 10)
+
+    margin = 36
+    y = 14
+
+    if position == "left":
+        page_canvas.drawString(margin, y, label)
+    elif position == "right":
+        page_canvas.drawRightString(width - margin, y, label)
+    else:  # center
+        page_canvas.drawCentredString(width / 2, y, label)
+
+    page_canvas.save()
+    stream.seek(0)
+    return PdfReader(stream).pages[0]
+
+
+def merge_pdfs(
+    inputs: list[Path],
+    output: Path,
+    enumerate_pages: bool = True,
+    number_format: NumberFormat = "page_n",
+    position: NumberPosition = "center",
+    start_number: int = 1,
+    progress_callback: Callable[[int, int], None] | None = None,
+) -> None:
+    """Junta PDFs na ordem informada e enumera as páginas no rodapé."""
+    _validate_inputs(inputs)
+
     try:
         from pypdf import PdfReader, PdfWriter
     except ModuleNotFoundError as exc:
         raise CliError("Dependência ausente: instale com `pip install -r requirements.txt`.") from exc
 
-    try:
-        from reportlab.lib.colors import Color
-        from reportlab.pdfgen import canvas
-    except ModuleNotFoundError as exc:
-        raise CliError("Dependência ausente: instale com `pip install -r requirements.txt`.") from exc
-
-    return PdfReader, PdfWriter, Color, canvas
-
-
-def _build_number_overlay(
-    pdf_reader_class: object,
-    canvas_module: object,
-    color_class: object,
-    width: float,
-    height: float,
-    page_number: int,
-):
-    stream = io.BytesIO()
-    page_canvas = canvas_module.Canvas(stream, pagesize=(width, height))
-    page_canvas.setFillColor(color_class(0.25, 0.25, 0.25, alpha=1))
-    page_canvas.setFont("Helvetica", 10)
-    page_canvas.drawCentredString(width / 2, 14, f"Página {page_number}")
-    page_canvas.save()
-    stream.seek(0)
-
-    return pdf_reader_class(stream).pages[0]
-
-
-def merge_pdfs(inputs: list[Path], output: Path, enumerate_pages: bool = True) -> None:
-    """Junta PDFs na ordem informada e enumera as páginas no rodapé."""
-    _validate_inputs(inputs)
-    _validate_output_path(inputs, output)
-
-    PdfReader, PdfWriter, Color, canvas = _import_pdf_dependencies()
-
     writer = PdfWriter()
 
-    global_page_number = 1
+    # Pré-calcula total de páginas para o formato "n / total"
+    total_pages = 0
+    readers: list[PdfReader] = []
     for pdf_path in inputs:
         reader = PdfReader(str(pdf_path))
+        readers.append(reader)
+        total_pages += len(reader.pages)
 
+    global_page_number = start_number
+    processed = 0
+
+    for reader in readers:
         for page in reader.pages:
             if enumerate_pages:
                 width = float(page.mediabox.width)
                 height = float(page.mediabox.height)
                 overlay = _build_number_overlay(
-                    pdf_reader_class=PdfReader,
-                    canvas_module=canvas,
-                    color_class=Color,
-                    width=width,
-                    height=height,
-                    page_number=global_page_number,
+                    width, height, global_page_number, total_pages, number_format, position
                 )
                 page.merge_page(overlay)
 
             writer.add_page(page)
             global_page_number += 1
+            processed += 1
+
+            if progress_callback:
+                progress_callback(processed, total_pages)
 
     output.parent.mkdir(parents=True, exist_ok=True)
     with output.open("wb") as stream:
@@ -113,6 +136,26 @@ def _build_parser() -> argparse.ArgumentParser:
         type=Path,
         help="Arquivo PDF de saída.",
     )
+    parser.add_argument(
+        "--format",
+        dest="number_format",
+        choices=["page_n", "n_of_total", "dash_n_dash", "number_only"],
+        default="page_n",
+        help="Formato da numeração (padrão: page_n).",
+    )
+    parser.add_argument(
+        "--position",
+        choices=["left", "center", "right"],
+        default="center",
+        help="Posição do número no rodapé (padrão: center).",
+    )
+    parser.add_argument(
+        "--start",
+        dest="start_number",
+        type=int,
+        default=1,
+        help="Número inicial de página (padrão: 1).",
+    )
     return parser
 
 
@@ -121,7 +164,14 @@ def main() -> int:
     args = parser.parse_args()
 
     try:
-        merge_pdfs(inputs=args.inputs, output=args.output, enumerate_pages=True)
+        merge_pdfs(
+            inputs=args.inputs,
+            output=args.output,
+            enumerate_pages=True,
+            number_format=args.number_format,
+            position=args.position,
+            start_number=args.start_number,
+        )
     except CliError as exc:
         parser.error(str(exc))
         return 2
