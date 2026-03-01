@@ -1,45 +1,59 @@
 # JuntarPDFs
 
-Automação simples em Python para:
+Automação em Python para:
 
 - juntar vários PDFs na ordem desejada;
 - **opcionalmente** inserir páginas/PDFs extras em posições específicas;
-- preservar o conteúdo original das páginas (incluindo imagens), sem redimensionar/rasterizar.
+- usar por linha de comando ou por tela (interface gráfica);
+- gerar executável com PyInstaller.
 
-## Requisitos
-
-- Python 3.10+
-- Dependências:
+## Instalação
 
 ```bash
 pip install -r requirements.txt
 ```
 
-## Uso básico (somente juntar PDFs)
+## Opção 1: usar com tela (GUI)
 
 ```bash
-python juntar_pdfs.py arquivo1.pdf arquivo2.pdf arquivo3.pdf -o saida.pdf
+python app_gui.py
 ```
 
-## Inserir páginas extras (opcional)
+Na tela você consegue:
 
-Você pode repetir `--insert` quantas vezes quiser no formato:
+1. adicionar os PDFs base;
+2. escolher se quer inserir páginas extras (opcional);
+3. escolher o arquivo final;
+4. gerar o PDF.
 
-`POSICAO:arquivo.pdf`
+## Opção 2: usar por terminal
 
-- `1` = insere antes da primeira página do PDF final.
-- `2` = insere antes da segunda página, e assim por diante.
-
-Exemplo:
+### Somente juntar PDFs
 
 ```bash
-python juntar_pdfs.py contrato.pdf anexo.pdf -o final.pdf \
+python juntar_pdfs.py arquivo1.pdf arquivo2.pdf -o saida.pdf
+```
+
+### Juntar e inserir páginas extras (opcional)
+
+Formato de inserção: `POSICAO:arquivo.pdf`
+
+```bash
+python juntar_pdfs.py base1.pdf base2.pdf -o final.pdf \
   --insert 1:capa.pdf \
   --insert 3:assinatura.pdf
 ```
 
+## Gerar executável (Windows)
+
+```bash
+pyinstaller --noconfirm --onefile --windowed --name JuntarPDFs app_gui.py
+```
+
+Executável gerado em:
+
+- `dist/JuntarPDFs.exe`
+
 ## Observação sobre páginas com imagem e faixa branca
 
-Para evitar o problema de parte em branco ao adicionar páginas com imagem,
-a automação copia as páginas diretamente do PDF original, sem converter para imagem
-ou ajustar escala manualmente.
+A junção/inserção copia as páginas diretamente do PDF original, sem rasterizar ou redimensionar, para evitar o problema de áreas em branco.
