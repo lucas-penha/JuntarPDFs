@@ -19,30 +19,54 @@ def _validate_inputs(paths: Iterable[Path]) -> None:
             raise CliError(f"Arquivo não encontrado: {path}")
 
 
-def _build_number_overlay(width: float, height: float, page_number: int):
-    from pypdf import PdfReader
-    from reportlab.lib.colors import Color
-    from reportlab.pdfgen import canvas
+def _validate_output_path(inputs: list[Path], output: Path) -> None:
+    """Evita sobrescrever arquivos de entrada acidentalmente."""
+    resolved_output = output.resolve()
+    for input_path in inputs:
+        if input_path.resolve() == resolved_output:
+            raise CliError("O arquivo de saída não pode ser igual a um arquivo de entrada.")
 
+
+def _import_pdf_dependencies() -> tuple[object, object, object, object]:
+    try:
+        from pypdf import PdfReader, PdfWriter
+    except ModuleNotFoundError as exc:
+        raise CliError("Dependência ausente: instale com `pip install -r requirements.txt`.") from exc
+
+    try:
+        from reportlab.lib.colors import Color
+        from reportlab.pdfgen import canvas
+    except ModuleNotFoundError as exc:
+        raise CliError("Dependência ausente: instale com `pip install -r requirements.txt`.") from exc
+
+    return PdfReader, PdfWriter, Color, canvas
+
+
+def _build_number_overlay(
+    pdf_reader_class: object,
+    canvas_module: object,
+    color_class: object,
+    width: float,
+    height: float,
+    page_number: int,
+):
     stream = io.BytesIO()
-    page_canvas = canvas.Canvas(stream, pagesize=(width, height))
-    page_canvas.setFillColor(Color(0.25, 0.25, 0.25, alpha=1))
+    page_canvas = canvas_module.Canvas(stream, pagesize=(width, height))
+    page_canvas.setFillColor(color_class(0.25, 0.25, 0.25, alpha=1))
     page_canvas.setFont("Helvetica", 10)
     page_canvas.drawCentredString(width / 2, 14, f"Página {page_number}")
     page_canvas.save()
     stream.seek(0)
 
-    return PdfReader(stream).pages[0]
+    return pdf_reader_class(stream).pages[0]
 
 
 def merge_pdfs(inputs: list[Path], output: Path, enumerate_pages: bool = True) -> None:
     """Junta PDFs na ordem informada e enumera as páginas no rodapé."""
     _validate_inputs(inputs)
+    _validate_output_path(inputs, output)
 
-    try:
-        from pypdf import PdfReader, PdfWriter
-    except ModuleNotFoundError as exc:
-        raise CliError("Dependência ausente: instale com `pip install -r requirements.txt`.") from exc
+    PdfReader, PdfWriter, Color, canvas = _import_pdf_dependencies()
 
     writer = PdfWriter()
 
@@ -54,7 +78,14 @@ def merge_pdfs(inputs: list[Path], output: Path, enumerate_pages: bool = True) -
             if enumerate_pages:
                 width = float(page.mediabox.width)
                 height = float(page.mediabox.height)
-                overlay = _build_number_overlay(width, height, global_page_number)
+                overlay = _build_number_overlay(
+                    pdf_reader_class=PdfReader,
+                    canvas_module=canvas,
+                    color_class=Color,
+                    width=width,
+                    height=height,
+                    page_number=global_page_number,
+                )
                 page.merge_page(overlay)
 
             writer.add_page(page)

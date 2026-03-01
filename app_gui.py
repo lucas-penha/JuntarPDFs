@@ -54,6 +54,7 @@ class PdfMergeApp:
         ttk.Button(toolbar, text="Mover para baixo", command=lambda: self._move_input(1)).pack(
             side="left", padx=8
         )
+        ttk.Button(toolbar, text="Limpar lista", command=self._clear_inputs).pack(side="left")
 
         self.input_list = tk.Listbox(frame, height=12)
         self.input_list.pack(fill="both", expand=True)
@@ -76,8 +77,14 @@ class PdfMergeApp:
         )
         for file_path in selected:
             path = Path(file_path)
+            if path in self.input_files:
+                continue
             self.input_files.append(path)
             self.input_list.insert(tk.END, str(path))
+
+    def _clear_inputs(self) -> None:
+        self.input_files.clear()
+        self.input_list.delete(0, tk.END)
 
     def _remove_input(self) -> None:
         index = self.input_list.curselection()

@@ -22,9 +22,10 @@ python app_gui.py
 Na tela você consegue:
 
 1. adicionar os PDFs base;
-2. organizar a ordem;
-3. escolher o arquivo final;
-4. gerar o PDF com páginas enumeradas no rodapé.
+2. organizar a ordem (subir/descer);
+3. limpar ou remover itens da lista;
+4. escolher o arquivo final;
+5. gerar o PDF com páginas enumeradas no rodapé.
 
 ## Opção 2: usar por terminal
 
@@ -33,6 +34,11 @@ python juntar_pdfs.py arquivo1.pdf arquivo2.pdf arquivo3.pdf -o saida.pdf
 ```
 
 > O PDF gerado já sai com numeração contínua de páginas (Página 1, Página 2, ...).
+
+## Regras importantes
+
+- O arquivo de saída não pode ser o mesmo de um arquivo de entrada.
+- Se faltar dependência, rode novamente `pip install -r requirements.txt`.
 
 ## Gerar executável (Windows)
 
